@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import Admin from '../models/adminModel.js';  // Adjust the import path if needed
+import Admin from '../models/adminModel.js'; 
+import User from '../models/userModel.js' // Adjust the import path if needed
 
 // Admin login controller
 
@@ -113,3 +114,27 @@ export const addAdmin=async(req,res,next)=>{
 
 
     
+export const deleteUserById = async (req, res) => {
+  const { id } = req.params;
+  // console.log(id) // Extract the ID from request parameters
+
+  try {
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully',
+      user: deletedUser,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting user',
+      error: error.message,
+    });
+  }
+};

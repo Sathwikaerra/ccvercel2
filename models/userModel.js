@@ -34,6 +34,7 @@ const UserSchema = new Schema(
     },
     phoneNumber: {
       type: String,
+      unique:true,
       required: true,
     },
     request: {

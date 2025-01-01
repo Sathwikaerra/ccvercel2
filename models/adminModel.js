@@ -8,6 +8,12 @@ const adminSchema=new Schema({
         type:String,
         required:true,
     },
+    resetPasswordToken: {
+        type: String,
+      },
+      resetPasswordExpires: {
+        type: Date,
+      },
    
     email:{
         type:String,

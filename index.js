@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt'
 import nodemailer from 'nodemailer';
 import User from './models/userModel.js'
+import Admin from './models/adminModel.js'
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -194,6 +195,7 @@ app.post('/user/verify-otp/:userId', async (req, res) => {
 });
 
 // API to send OTP (for testing, simplified)
+// let otpStore1={};
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
 
@@ -203,7 +205,8 @@ app.post('/send-otp', async (req, res) => {
 
   try {
     const otp = generateOTP();
-    otpStore[email] = { otp, expiresAt: Date.now() + 300000 }; // OTP expires in 5 minutes
+    otpStore[email] = { otp, expiresAt: Date.now() + 300000 };
+    // console.log(otpStore) // OTP expires in 5 minutes
 
     await sendOTPviaEmail(email, otp);
     res.status(200).json({ message: 'OTP sent successfully' });
@@ -221,6 +224,7 @@ app.post('/verify-otp', (req, res) => {
   }
 
   const storedOTP = otpStore[email];
+
 
   if (!storedOTP) {
     return res.status(400).json({ error: 'OTP not sent or expired' });
@@ -277,6 +281,13 @@ app.post('/suggestions/send-email', async (req, res) => {
 app.post('/reset-password', async (req, res) => {
   const { resetToken, email, newPassword } = req.body;
   // console.log(resetToken,email,newPassword)
+  if(newPassword.length<5)
+    {
+      return res.status(403).json({ message: 'password must have atleast 6 characters' });
+
+    }else{
+
+    
 
   try {
     // Find the user by email
@@ -285,6 +296,8 @@ app.post('/reset-password', async (req, res) => {
       // console.log('1')
       return res.status(404).json({ message: 'User not found' });
     }
+   
+
 
     // Check if the reset token is valid and hasn't expired
     if (user.resetPasswordToken !== resetToken) {
@@ -296,6 +309,7 @@ app.post('/reset-password', async (req, res) => {
       // console.log('3')
       return res.status(400).json({ message: 'Token has expired' });
     }
+    
 
     // Token is valid, so let's update the password
     user.password = await bcrypt.hash(newPassword, 10);
@@ -309,6 +323,55 @@ app.post('/reset-password', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong', error });
   }
+}
+});
+
+app.post('/admins/reset-password', async (req, res) => {
+  const { resetToken, email, newPassword } = req.body;
+  // console.log(resetToken,email,newPassword)
+  if(newPassword.length<5)
+    {
+      return res.status(403).json({ message: 'password must have atleast 6 characters' });
+
+    }else{
+
+    
+
+  try {
+    // Find the user by email
+    const user = await Admin.findOne({ email });
+    if (!user) {
+      // console.log('1')
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+   
+
+
+    // Check if the reset token is valid and hasn't expired
+    if (user.resetPasswordToken !== resetToken) {
+      // console.log('2')
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+
+    if (user.resetPasswordExpires < Date.now()) {
+      // console.log('3')
+      return res.status(400).json({ message: 'Token has expired' });
+    }
+    
+
+    // Token is valid, so let's update the password
+    user.password = await bcrypt.hash(newPassword, 10);
+    // console.log('5') // Hash the new password
+    user.resetPasswordToken = undefined; // Clear the reset token
+    user.resetPasswordExpires = undefined; // Clear the reset expiration time
+    await user.save();
+    // console.log('4')
+
+    res.status(200).json({ message: 'Password has been successfully reset' });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error });
+  }
+}
 });
 
 
@@ -319,6 +382,33 @@ app.post('/forgot-password', async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    // console.log(resetToken);
+
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+    // console.log(user);
+
+    // Instead of emailing the token, return it as a response
+    res.status(200).json({ 
+      message: 'Password reset token generated successfully.', 
+      resetToken: resetToken // Send the token back to the frontend
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error });
+  }
+});
+
+
+app.post('/admins/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  // console.log(email);
+  try {
+    const user = await Admin.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'Admin not found' });
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     // console.log(resetToken);

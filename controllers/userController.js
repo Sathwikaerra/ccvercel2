@@ -60,6 +60,12 @@ export const signup = async (req, res) => {
       // console.log("ID already exists");
       return res.status(401).json({ message: 'ID already exists' });
     }
+    const existingNumber = await User.findOne({ phoneNumber });
+    if (existingNumber) {
+      // console.log("ID already exists");
+      return res.status(404).json({ message: 'mobile Number already exists' });
+    }
+
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -73,6 +79,7 @@ export const signup = async (req, res) => {
       id,
     });
 
+
     await newUser.save();
     // console.log("User created successfully");
     res.status(200).json({ message: 'User created successfully', newUser });
@@ -81,6 +88,62 @@ export const signup = async (req, res) => {
     res.status(500).json({ message: 'Error creating user', error });
   }
 };
+
+
+
+export const verifySignup = async (req, res) => {
+  try {
+    const { name, email, password, phoneNumber, id } = req.body;
+
+    // Validate inputs
+    if (!name || !email || !password || !phoneNumber || !id) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // console.log("Received signup request with:", req.body);
+
+    // Check if the user already exists by email
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      console.log("User already exists");
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+
+    // Check if the user ID already exists
+    const existingId = await User.findOne({ id });
+    if (existingId) {
+      // console.log("ID already exists");
+      return res.status(401).json({ message: 'ID already exists' });
+    }
+    const existingNumber = await User.findOne({ phoneNumber });
+    if (existingNumber) {
+      // console.log("ID already exists");
+      return res.status(404).json({ message: 'mobile Number already exists' });
+    }
+
+
+    // // Hash the password
+    // const hashedPassword = await bcrypt.hash(password, 10);
+
+    // // Create a new user
+    // const newUser = new User({
+    //   name,
+    //   email,
+    //   password: hashedPassword,
+    //   phoneNumber,
+    //   id,
+    // });
+
+    // await newUser.save();
+    // console.log("User created successfully");
+    res.status(200).json({ message: 'No user found you can proceed successfully'});
+  } catch (error) {
+    // console.error("Error creating user:", error);
+    res.status(500).json({ message: 'Error in verifying', error });
+  }
+};
+
+
 
 
 export const login = async (req, res) => {
@@ -276,79 +339,155 @@ export const updateCount = async (req, res) => {
       }
   
       const approvedRequest = user.orderRequest[requestIndex];
-  
-      // Move the approved request to accessedBy
-      user.accessedBy.push({
-        user: approvedRequest.requestedBy,
-        count: approvedRequest.serviceCount || 1,
-      });
-  
-      // Update the user's serviceCount and active status
       user.serviceCount -= approvedRequest.serviceCount || 1;
-      if (user.serviceCount === 0) {
+      if (user.serviceCount == 0) {
         user.active = false;
-      }
+        user.accessedBy.push({
+          user: approvedRequest.requestedBy,
+          count: approvedRequest.serviceCount || 1,
+        });
+        user.orderRequest.splice(requestIndex, 1);
   
-      // Remove the request from orderRequest
-      user.orderRequest.splice(requestIndex, 1);
-  
-      // Find the user who made the request
-      const requestedByUser = await User.findById(approvedRequest.requestedBy._id);
-      if (requestedByUser) {
-        // Update the requestedTo attribute for the matching entry
-        const requestToUpdate = requestedByUser.requestedTo.find(
-          (req) => req.userDetails.toString() === userId
-        );
-        if (requestToUpdate) {
-          requestToUpdate.status = "approved";
-          // Remove the approved entry from requestedTo
-          const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
+        // Find the user who made the request
+        const requestedByUser = await User.findById(approvedRequest.requestedBy._id);
+        if (requestedByUser) {
+          // Update the requestedTo attribute for the matching entry
+          const requestToUpdate = requestedByUser.requestedTo.find(
             (req) => req.userDetails.toString() === userId
           );
-          if (requestToRemoveIndex !== -1) {
-            requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
+          if (requestToUpdate) {
+            requestToUpdate.status = "approved";
+            // Remove the approved entry from requestedTo
+            const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
+              (req) => req.userDetails.toString() === userId
+            );
+            if (requestToRemoveIndex !== -1) {
+              requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
+            }
           }
+    
+          requestedByUser.requestPending = false;
+          await requestedByUser.save();
+    
+          // Send email notification to the requested user
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: process.env.EMAIL_USER, // Your email address
+              pass: process.env.EMAIL_PASS, // Your email password or app password
+            },
+          });
+    
+          const mailOptions = {
+            from: process.env.EMAIL_USER, // Sender address
+            to: requestedByUser.email, // Receiver address
+            subject: "Order Request Approved", // Subject line
+            text: `Hello ${requestedByUser.name},\n\nYour order request has been confirmed. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`, // Email body
+          };
+    
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+              console.error("Error sending email: ", error);
+            } else {
+              console.log("Email sent: " + info.response);
+            }
+          });
         }
-  
-        requestedByUser.requestPending = false;
-        await requestedByUser.save();
-  
-        // Send email notification to the requested user
-        const transporter = nodemailer.createTransport({
-          service: "gmail",
-          auth: {
-            user: process.env.EMAIL_USER, // Your email address
-            pass: process.env.EMAIL_PASS, // Your email password or app password
-          },
+    
+        await user.save();
+    
+        // Retrieve the updated user details with populated fields
+        const updatedUser = await User.findById(userId)
+          .populate("accessedBy.user")
+          .populate("orderRequest.requestedBy");
+    
+        res.status(200).json({
+          message: "Request approved and moved to accessedBy",
+          newuser: updatedUser,
         });
+
+      }
+      else if(user.serviceCount<0)
+      {
+        res.status(404).json({
+          message: "has only limited offers",});
+
+      }
+      else{
+        user.accessedBy.push({
+          user: approvedRequest.requestedBy,
+          count: approvedRequest.serviceCount || 1,
+        });
+        user.orderRequest.splice(requestIndex, 1);
   
-        const mailOptions = {
-          from: process.env.EMAIL_USER, // Sender address
-          to: requestedByUser.email, // Receiver address
-          subject: "Order Request Approved", // Subject line
-          text: `Hello ${requestedByUser.name},\n\nYour order request has been confirmed. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`, // Email body
-        };
-  
-        transporter.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            console.error("Error sending email: ", error);
-          } else {
-            console.log("Email sent: " + info.response);
+        // Find the user who made the request
+        const requestedByUser = await User.findById(approvedRequest.requestedBy._id);
+        if (requestedByUser) {
+          // Update the requestedTo attribute for the matching entry
+          const requestToUpdate = requestedByUser.requestedTo.find(
+            (req) => req.userDetails.toString() === userId
+          );
+          if (requestToUpdate) {
+            requestToUpdate.status = "approved";
+            // Remove the approved entry from requestedTo
+            const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
+              (req) => req.userDetails.toString() === userId
+            );
+            if (requestToRemoveIndex !== -1) {
+              requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
+            }
           }
+    
+          requestedByUser.requestPending = false;
+          await requestedByUser.save();
+    
+          // Send email notification to the requested user
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: process.env.EMAIL_USER, // Your email address
+              pass: process.env.EMAIL_PASS, // Your email password or app password
+            },
+          });
+    
+          const mailOptions = {
+            from: process.env.EMAIL_USER, // Sender address
+            to: requestedByUser.email, // Receiver address
+            subject: "Order Request Approved", // Subject line
+            text: `Hello ${requestedByUser.name},\n\nYour order request has been confirmed. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`, // Email body
+          };
+    
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+              console.error("Error sending email: ", error);
+            } else {
+              console.log("Email sent: " + info.response);
+            }
+          });
+        }
+    
+        await user.save();
+    
+        // Retrieve the updated user details with populated fields
+        const updatedUser = await User.findById(userId)
+          .populate("accessedBy.user")
+          .populate("orderRequest.requestedBy");
+    
+        res.status(200).json({
+          message: "Request approved and moved to accessedBy",
+          newuser: updatedUser,
         });
+
       }
   
-      await user.save();
+      // Move the approved request to accessedBy
+     
   
-      // Retrieve the updated user details with populated fields
-      const updatedUser = await User.findById(userId)
-        .populate("accessedBy.user")
-        .populate("orderRequest.requestedBy");
+      // Update the user's serviceCount and active status
+      
   
-      res.status(200).json({
-        message: "Request approved and moved to accessedBy",
-        newuser: updatedUser,
-      });
+      // Remove the request from orderRequest
+     
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server error" });

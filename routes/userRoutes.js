@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/userModel.js'
 import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
-import { signup, login,getUser,updateStatus,updateUserPassword,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers } from '../controllers/userController.js';
+import { signup, login,getUser,updateStatus,updateUserPassword,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers, verifySignup } from '../controllers/userController.js';
 
 const UserRouter = express.Router();
 dotenv.config()
@@ -52,6 +52,8 @@ UserRouter.post("/Alert/send-email", async (req, res) => {
 
 // Routes for user signup and login
 UserRouter.post('/signup', signup);
+UserRouter.post('/verifysignup', verifySignup);
+
 UserRouter.post('/approve-request/:userId', approveRequest);
 UserRouter.delete('/remove-request/:userId', rejectRequest);
 UserRouter.delete('/remove-accessed-by/:userId', removeAccessedBy);

@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/userModel.js'
 import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
-import { signup, login,getUser,updateStatus,updateUserPassword,deleteRequestFromRequestedTo,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers, verifySignup,getResquestTo } from '../controllers/userController.js';
+import { signup, login,getUser,updateStatus,getUser1,updateUserPassword,deleteRequestFromRequestedTo,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers, verifySignup,getResquestTo } from '../controllers/userController.js';
 
 const UserRouter = express.Router();
 dotenv.config()
@@ -64,6 +64,7 @@ UserRouter.get('/',getActiveUsers)
 UserRouter.get('/allusers',getAllUsers)
 UserRouter.post('/login', login);
 UserRouter.get('/:userId',getUser)
+UserRouter.get('/cart/:currentUserId',getUser1)
 UserRouter.put('/update-status',updateStatus)
 UserRouter.put('/update-request',updateRequest)
 UserRouter.get('/get/requsers',getRequestUsers)

@@ -34,6 +34,35 @@ if(!newuser)
 }
 
 
+
+export const getUser1=async(req,res,next)=>{
+  const userId=req.params.currentUserId;
+
+   
+let newuser;
+
+
+try {
+newuser= await User.findById(userId).populate('orderRequest.requestedBy', 'name email status requestPending request phoneNumber') // Populate requestedBy with specific fields
+.populate('accessedBy.user', 'name email phoneNumber')
+.populate('requestedTo.userDetails','name email status count') // Populate the user field inside accessedBy
+.exec();
+    
+
+} catch (error) {
+  return next(error)
+  
+}
+
+if(!newuser)
+  {
+      res.status(500).json({message:"something went wrong "})
+  }
+
+  res.status(200).json({newuser})
+}
+
+
    
 
 export const signup = async (req, res) => {
@@ -709,7 +738,7 @@ export const deleteRequestFromRequestedTo = async (req, res) => {
       user.requestedTo.splice(index, 1);
       await user.save();
 
-      res.status(200).json({ message: 'Request deleted successfully' });
+      res.status(200).json({ message: 'Request deleted successfully',cart:user.requestedTo.length });
   } catch (error) {
       console.error('Error deleting request:', error);
       res.status(500).json({ message: 'Server error' });

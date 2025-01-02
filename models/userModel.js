@@ -47,7 +47,7 @@ const UserSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
+      // enum: ['pending', 'approved', 'rejected'],
       default: 'pending', // Default status is 'pending'
     },
     active: {
@@ -77,13 +77,18 @@ const UserSchema = new Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: 'User', // Reference to the user who requested the service
         },
+        identifier:{
+          type:String,
+          default:0
+          
+        },
         serviceCount: {
           type: Number,
           required: true,
         },
         status: {
           type: String,
-          enum: ['pending', 'approved', 'rejected'],
+          // enum: ['pending', 'approved', 'rejected'],
           default: 'pending', // Default status is 'pending'
         },
         createdAt: {
@@ -99,18 +104,14 @@ const UserSchema = new Schema(
     // Tracks outgoing requests made by this user
     requestedTo: [
       {
-        userDetails: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User', // Reference to the user being requested
-        },
-        count: {
-          type: Number,
-          required: true,
-        },
-        status: {
-          type: String,
-          enum: ['pending', 'approved', 'rejected'],
-          default: 'pending', // Default status is 'pending'
+        userDetails: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+        serviceCount:{type:Number,default:0},
+        _id: { type: mongoose.Schema.Types.ObjectId, index: true },
+        status: { type: String, default: "pending" },
+        identifier:{
+          type:String,
+          default:0
+          
         },
         createdAt: {
           type: Date,

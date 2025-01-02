@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/userModel.js'
 import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
-import { signup, login,getUser,updateStatus,updateUserPassword,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers, verifySignup } from '../controllers/userController.js';
+import { signup, login,getUser,updateStatus,updateUserPassword,deleteRequestFromRequestedTo,approveRequest,rejectRequest,resetParcels,getAllUsers,getActiveUsers,updateRequest,updateCount,removeAccessedBy, getRequestUsers, verifySignup,getResquestTo } from '../controllers/userController.js';
 
 const UserRouter = express.Router();
 dotenv.config()
@@ -50,7 +50,9 @@ UserRouter.post("/Alert/send-email", async (req, res) => {
   }
 });
 
-// Routes for user signup and login
+// Routes for user signup and login]
+UserRouter.delete('/:userId/request/:index', deleteRequestFromRequestedTo);
+UserRouter.get('/requestedTo/:userId',getResquestTo)
 UserRouter.post('/signup', signup);
 UserRouter.post('/verifysignup', verifySignup);
 
@@ -139,10 +141,14 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
         console.error('Error saving user data:', error);
         res.status(500).json({ error: 'Failed to save user data.' });
       }
-    });UserRouter.put('/set-order-request/:userId', async (req, res) => {
+    });
+    
+    UserRouter.put('/set-order-request/:userId', async (req, res) => {
       try {
         const { userId } = req.params;
-        const { requestedBy, serviceCount, status } = req.body;
+        const { requestedBy, serviceCount, status,identifier } = req.body;
+
+        // console.log(requestedBy,serviceCount,status)
     
         // Find the user to whom the request is being made
         const user = await User.findById(userId);
@@ -155,6 +161,8 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
         if (!requester) {
           return res.status(404).send({ message: 'Requesting user not found' });
         }
+
+        console.log(2);
     
         // Ensure the orderRequest field is an array for the user
         if (!Array.isArray(user.orderRequest)) {
@@ -165,28 +173,36 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
         if (!Array.isArray(requester.requestedTo)) {
           requester.requestedTo = [];
         }
-    
+     
         // Add the order request to the user's orderRequest array
         const orderRequestEntry = {
           requestedBy, // The user who is requesting
           serviceCount, // Number of services requested
-          status, // Status of the order (pending, approved, rejected)
+          status,
+          identifier, // Status of the order (pending, approved, rejected)
           createdAt: new Date(),
         };
         user.orderRequest.push(orderRequestEntry);
+        console.log('3')
     
         // Add the request to the requester's requestedTo array
         const requestedToEntry = {
           userDetails: userId, // The user being requested
-          count: serviceCount, // Number of services requested
-          status, // Status of the request (pending, approved, rejected)
+          serviceCount, // Number of services requested
+          status,
+          identifier, // Status of the request (pending, approved, rejected)
           createdAt: new Date(),
         };
+        console.log(4)
         requester.requestedTo.push(requestedToEntry);
+        console.log(5)
     
         // Save both users
         await user.save();
         await requester.save();
+
+        console.log(6)
+
     
         res.status(200).send({
           message: 'Order request and requestedTo updated successfully',

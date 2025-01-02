@@ -16,7 +16,7 @@ let newuser;
 try {
  newuser= await User.findById(userId).populate('orderRequest.requestedBy', 'name email status requestPending request phoneNumber') // Populate requestedBy with specific fields
  .populate('accessedBy.user', 'name email phoneNumber')
- .populate('requestedTo.userDetails','name email count') // Populate the user field inside accessedBy
+ .populate('requestedTo.userDetails','name email status count') // Populate the user field inside accessedBy
  .exec();
       
   
@@ -253,7 +253,8 @@ export const getActiveUsers = async (req, res) => {
 export const getAllUsers = async (req, res) => {
     try {
         // Find all users with active status set to true
-        const activeUsers = await User.find({}).populate('accessedBy.user', 'name email phoneNumber');
+        const activeUsers = await User.find({}).populate('accessedBy.user', 'name email phoneNumber')
+        .populate('requestedTo.userDetails','name email status');
 
         // If no active users are found
         if (activeUsers.length === 0) {
@@ -320,234 +321,94 @@ export const updateCount = async (req, res) => {
       res.status(500).json({ message: "Error updating service count",err });
     }
   };
-
+  
+  import nodemailer from 'nodemailer';
   export const approveRequest = async (req, res) => {
     try {
       const { userId } = req.params;
-      const { requestId } = req.body;
+      const { requestId, requestedTo, identifier } = req.body;
   
-      // Find the user who received the request
+      if (!requestId || !userId || !requestedTo || !identifier) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+  
       const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
   
-      // Find the request to approve
-      const requestIndex = user.orderRequest.findIndex((req) => req._id.toString() === requestId);
-      if (requestIndex === -1) {
+      const targetRequest = user.orderRequest.find(
+        (request) => request._id.toString() === requestId
+      );
+      if (!targetRequest) {
         return res.status(404).json({ message: "Request not found" });
       }
   
-      const approvedRequest = user.orderRequest[requestIndex];
-      user.serviceCount -= approvedRequest.serviceCount || 1;
-      if (user.serviceCount == 0) {
-        user.active = false;
-        user.accessedBy.push({
-          user: approvedRequest.requestedBy,
-          count: approvedRequest.serviceCount || 1,
-        });
-        user.orderRequest.splice(requestIndex, 1);
+      // Update the user service count
+      user.serviceCount -= targetRequest.serviceCount || 1;
+      if (user.serviceCount < 0) {
+        return res.status(400).json({ message: "Insufficient offers remaining" });
+      }
   
-        // Find the user who made the request
-        const requestedByUser = await User.findById(approvedRequest.requestedBy._id);
-        if (requestedByUser) {
-          // Update the requestedTo attribute for the matching entry
-          const requestToUpdate = requestedByUser.requestedTo.find(
-            (req) => req.userDetails.toString() === userId
-          );
-          if (requestToUpdate) {
-            requestToUpdate.status = "approved";
-            // Remove the approved entry from requestedTo
-            const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
-              (req) => req.userDetails.toString() === userId
-            );
-            if (requestToRemoveIndex !== -1) {
-              requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
-            }
-          }
-    
-          requestedByUser.requestPending = false;
-          await requestedByUser.save();
-    
-          // Send email notification to the requested user
-          const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-              user: process.env.EMAIL_USER, // Your email address
-              pass: process.env.EMAIL_PASS, // Your email password or app password
-            },
-          });
-    
-          const mailOptions = {
-            from: process.env.EMAIL_USER, // Sender address
-            to: requestedByUser.email, // Receiver address
-            subject: "Order Request Approved", // Subject line
-            text: `Hello ${requestedByUser.name},\n\nYour order request has been confirmed. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`, // Email body
-          };
-    
-          transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-              console.error("Error sending email: ", error);
-            } else {
-              console.log("Email sent: " + info.response);
-            }
-          });
-        }
-    
-        await user.save();
-    
-        // Retrieve the updated user details with populated fields
-        const updatedUser = await User.findById(userId)
-          .populate("accessedBy.user")
-          .populate("orderRequest.requestedBy");
-    
-        res.status(200).json({
-          message: "Request approved and moved to accessedBy",
-          newuser: updatedUser,
-        });
+      if (user.serviceCount === 0) user.active = false;
+  
+      // Move to accessedBy
+      user.accessedBy.push({
+        user: targetRequest.requestedBy,
+        count: targetRequest.serviceCount || 1,
+      });
+  
+      // Remove from orderRequest
+      user.orderRequest = user.orderRequest.filter(
+        (request) => request._id.toString() !== requestId
+      );
+  
+      // Update the requested user's `requestedTo` array
+      const requestedByUser = await User.findById(requestedTo);
 
-      }
-      else if(user.serviceCount<0)
-      {
-        res.status(404).json({
-          message: "has only limited offers",});
-
-      }
-      else{
-        user.accessedBy.push({
-          user: approvedRequest.requestedBy,
-          count: approvedRequest.serviceCount || 1,
-        });
-        user.orderRequest.splice(requestIndex, 1);
-  
-        // Find the user who made the request
-        const requestedByUser = await User.findById(approvedRequest.requestedBy._id);
-        if (requestedByUser) {
-          // Update the requestedTo attribute for the matching entry
-          const requestToUpdate = requestedByUser.requestedTo.find(
-            (req) => req.userDetails.toString() === userId
-          );
-          if (requestToUpdate) {
-            requestToUpdate.status = "approved";
-            // Remove the approved entry from requestedTo
-            const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
-              (req) => req.userDetails.toString() === userId
-            );
-            if (requestToRemoveIndex !== -1) {
-              requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
-            }
-          }
-    
-          requestedByUser.requestPending = false;
-          await requestedByUser.save();
-    
-          // Send email notification to the requested user
-          const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-              user: process.env.EMAIL_USER, // Your email address
-              pass: process.env.EMAIL_PASS, // Your email password or app password
-            },
-          });
-    
-          const mailOptions = {
-            from: process.env.EMAIL_USER, // Sender address
-            to: requestedByUser.email, // Receiver address
-            subject: "Order Request Approved", // Subject line
-            text: `Hello ${requestedByUser.name},\n\nYour order request has been confirmed. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`, // Email body
-          };
-    
-          transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-              console.error("Error sending email: ", error);
-            } else {
-              console.log("Email sent: " + info.response);
-            }
-          });
-        }
-    
-        await user.save();
-    
-        // Retrieve the updated user details with populated fields
-        const updatedUser = await User.findById(userId)
-          .populate("accessedBy.user")
-          .populate("orderRequest.requestedBy");
-    
-        res.status(200).json({
-          message: "Request approved and moved to accessedBy",
-          newuser: updatedUser,
-        });
-
-      }
-  
-      // Move the approved request to accessedBy
-     
-  
-      // Update the user's serviceCount and active status
-      
-  
-      // Remove the request from orderRequest
-     
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Server error" });
-    }
-  };
-  import nodemailer from "nodemailer"; // Assuming you are using nodemailer for email sending
-
-  export const rejectRequest = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { index } = req.body;
-  
-      // Find the user who received the request
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-  
-      // Validate the index
-      if (index < 0 || index >= user.orderRequest.length) {
-        return res.status(400).json({ message: "Invalid index" });
-      }
-  
-      const rejectedRequest = user.orderRequest[index];
-  
-      // Find the user who made the request
-      const requestedByUser = await User.findById(rejectedRequest.requestedBy._id);
       if (requestedByUser) {
-        // Update the requestedTo attribute for the matching entry
-        const requestToUpdate = requestedByUser.requestedTo.find(
-          (req) => req.userDetails.toString() === userId
-        );
+       const requestToUpdate = requestedByUser.requestedTo.find((req) => {
+  console.log("Checking request:", req);
+  console.log(
+    "Condition 1 (userDetails match):",
+    req.userDetails.toString() === userId
+  );
+  console.log(
+    "Condition 2 (createdAt match):",
+  req.identifier===identifier
+  );
+  return (
+    req.userDetails.toString() === userId &&
+    req.identifier===identifier
+  );
+});
+
+  
         if (requestToUpdate) {
-          requestToUpdate.status = "rejected";
-          // Remove the rejected entry from requestedTo
-          const requestToRemoveIndex = requestedByUser.requestedTo.findIndex(
-            (req) => req.userDetails.toString() === userId
+          requestToUpdate.status = "approved";
+          await requestedByUser.save();
+        } else {
+          console.warn(
+            `No matching request found in requestedTo for userId: ${userId} and time: ${time}`
           );
-          if (requestToRemoveIndex !== -1) {
-            requestedByUser.requestedTo.splice(requestToRemoveIndex, 1); // Pop the index
-          }
         }
+      }
   
-        requestedByUser.requestPending = false;
-        await requestedByUser.save();
-  
-        // Send email notification to the requested user
+      // Send email notification
+      try {
         const transporter = nodemailer.createTransport({
           service: "gmail",
           auth: {
-            user: process.env.EMAIL_USER, // Your email address
-            pass: process.env.EMAIL_PASS, // Your email password or app password
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
           },
         });
   
         const mailOptions = {
-          from: process.env.EMAIL_USER, // Sender address
-          to: requestedByUser.email, // Receiver address
-          subject: "Order Request Rejected", // Subject line
-          text: `Hello ${requestedByUser.name},\n\nWe regret to inform you that your order request has been rejected. .\n\nBest regards, Your Team`, // Email body
+          from: process.env.EMAIL_USER,
+          to: requestedByUser?.email,
+          subject: "Order Request Approved",
+          text: `Hello ${requestedByUser?.name},\n\nYour order request has been approved. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`,
         };
   
         transporter.sendMail(mailOptions, (error, info) => {
@@ -557,11 +418,126 @@ export const updateCount = async (req, res) => {
             console.log("Email sent: " + info.response);
           }
         });
+      } catch (emailError) {
+        console.error("Error during email sending:", emailError);
       }
   
-      // Remove the request from orderRequest
-      user.orderRequest.splice(index, 1);
+      // Save the updated user
       await user.save();
+  
+      const updatedUser = await User.findById(userId)
+        .populate("accessedBy.user")
+        .populate("orderRequest.requestedBy");
+  
+      res.status(200).json({
+        message: "Request approved and moved to accessedBy",
+        newuser: updatedUser,
+      });
+    } catch (error) {
+      console.error("Error in approveRequest:", error);
+      res.status(500).json({ message: "Server error", error });
+    }
+  };
+  
+  
+  
+   // Assuming you are using nodemailer for email sending
+   export const rejectRequest = async (req, res) => {
+    try {
+      console.log("entered in server")
+      const { userId } = req.params;
+      const { requestId, requestedTo, identifier } = req.body;
+
+      // console.log(requestId,requestedTo,identifier,userId)
+  
+      if (!requestId || !userId || !requestedTo || !identifier) {
+        
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      // console.log(1)
+  
+      // Find the user who received the request
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // console.log(2)
+  
+      // Find the target request by requestId in the orderRequest array
+      const targetRequest = user.orderRequest.find(
+        (request) => request._id.toString() === requestId
+      );
+
+      // console.log(3)
+      if (!targetRequest) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // console.log(4)
+  
+      // Remove the request from orderRequest
+      user.orderRequest = user.orderRequest.filter(
+        (request) => request._id.toString() !== requestId
+      );
+  
+      // console.log(5)
+      // Update the requested user's `requestedTo` array
+      const requestedByUser = await User.findById(requestedTo);
+      if (requestedByUser) {
+        // console.log('requesteduser')
+        const requestToUpdate = requestedByUser.requestedTo.find((req) => {
+          return (
+            req.userDetails.toString() === userId && req.identifier === identifier
+          );
+        });
+  
+        if (requestToUpdate) {
+          // console.log('requesstedUpdate')
+
+          requestToUpdate.status = "rejected"; // Update the status to rejected
+          await requestedByUser.save();
+        } else {
+          console.warn(
+            `No matching request found in requestedTo for userId: ${userId} and identifier: ${identifier}`
+          );
+        }
+
+        // console.log('done');
+  
+        // Send email notification to the requested user
+        try {
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASS,
+            },
+          });
+  
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: requestedByUser.email,
+            subject: "Order Request Rejected",
+            text: `Hello ${requestedByUser.name},\n\nWe regret to inform you that your order request has been rejected.\n\nBest regards, Your Team`,
+          };
+  
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+              console.error("Error sending email: ", error);
+            } else {
+              console.log("Email sent: " + info.response);
+            }
+          });
+        } catch (emailError) {
+          console.error("Error during email sending:", emailError);
+        }
+      }
+  
+      // Save the updated user data
+      await user.save();
+
+      // console.log('done finally')
   
       // Retrieve the updated user details with populated fields
       const updatedUser = await User.findById(userId)
@@ -573,8 +549,8 @@ export const updateCount = async (req, res) => {
         newuser: updatedUser,
       });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Server error" });
+      console.error("Error in rejectRequest:", error);
+      res.status(500).json({ message: "Server error", error });
     }
   };
   
@@ -692,4 +668,50 @@ export const updateCount = async (req, res) => {
       res.status(500).json({ message: "Server error" });
     }
   };
-  
+  export const getResquestTo = async (req, res) => {
+    const { userId } = req.params; // Get UserId from query params
+    if (!userId) return res.status(400).send({ error: 'UserId is required' });
+
+    try {
+        const user = await User.findById(userId).populate({
+            path: 'requestedTo.UserDetails',
+            select: 'name status', // Specify the fields you want from UserDetails
+            strictPopulate: false,
+        });
+
+        if (!user) return res.status(404).send({ error: 'User not found' });
+
+        res.send(user.requestedTo); // Send the requestedTo array with populated data
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: 'Internal Server Error' });
+    }
+};
+
+
+export const deleteRequestFromRequestedTo = async (req, res) => {
+  try {
+      const { userId, index } = req.params;
+
+      if (!userId || index === undefined) {
+          return res.status(400).json({ message: 'Invalid parameters' });
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      if (index < 0 || index >= user.requestedTo.length) {
+          return res.status(400).json({ message: 'Invalid index' });
+      }
+
+      user.requestedTo.splice(index, 1);
+      await user.save();
+
+      res.status(200).json({ message: 'Request deleted successfully' });
+  } catch (error) {
+      console.error('Error deleting request:', error);
+      res.status(500).json({ message: 'Server error' });
+  }
+};

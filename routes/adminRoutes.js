@@ -1,5 +1,5 @@
 import express from 'express';
-import { addAdmin,authenticateAdmin,adminLogin,deleteUserById } from '../controllers/adminController.js';
+import { addAdmin,searchUsers,authenticateAdmin,adminLogin,deleteUserById } from '../controllers/adminController.js';
 
 const AdminRouter = express.Router();
 
@@ -7,6 +7,7 @@ const AdminRouter = express.Router();
 AdminRouter.post('/signup', addAdmin);
 AdminRouter.post('/login', adminLogin);
 AdminRouter.delete('/delete/:id',deleteUserById)
+AdminRouter.get("/search", searchUsers);
 
 // Example of a protected route
 AdminRouter.get('/dashboard', authenticateAdmin, (req, res) => {

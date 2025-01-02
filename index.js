@@ -51,7 +51,7 @@ const sendOTPviaEmail = async (email, otp) => {
     const mailOptions = {
       from: process.env.EMAIL_USER, // Sender address
       to: email, // Receiver address
-      subject: 'Your OTP Code', // Subject of the email
+      subject: 'Your OTP Code for Verification', // Subject of the email
       text: `Your OTP code is: ${otp}`, // OTP message body
     };
 
@@ -62,17 +62,16 @@ const sendOTPviaEmail = async (email, otp) => {
     throw error;
   }
 };
+
+
 const sendOTPviaEmail1 = async (email, otp) => {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER, // Sender address
       to: email, // Receiver address
       subject: 'You have a food parcel request', // Updated subject
-      html: `
-        <p>You have a new food parcel request.</p>
-        <p>Please check the dashboard to confirm your opinion on the order.</p>
-       
-      `, // Basic HTML body with a single image
+      html: `You have a new food parcel request.
+        Please check the dashboard ${`https://campus-connect-3d916.web.app/`} to confirm your opinion on the order.`, // Basic HTML body with a single image
       // attachments: [
       //   {
       //     filename: 'CC2.jpg',
@@ -132,6 +131,60 @@ app.post('/user/send-otp/:userId', (req, res) => {
       res.status(500).json({ error: 'Failed to send OTP via email' });
     });
 });
+
+// API to send OTP to active user (via email)
+const sendOTPviaEmail2 = async (email, otp) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Sender address
+      to: email, // Receiver address
+      subject: 'You have a Delivery request', // Updated subject
+      html: `You have a Delivery request.
+        Please check your dashboard  ${`https://campus-connect-3d916.web.app/`}  to confirm your opinion on the order.`, // Basic HTML body with a single image
+      // attachments: [
+      //   {
+      //     filename: 'CC2.jpg',
+      //     path: path.join(__dirname, 'public/CC2.jpg'), // Path to the image file
+      //     cid: 'foodImage', // Content-ID for embedding the image
+      //   },
+      // ],
+    };
+    
+
+    await transporter.sendMail(mailOptions);
+    console.log('OTP sent via email');
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    throw error;
+  }
+};
+
+app.post('/user/other/send-otp/:userId', (req, res) => {
+  const { userId } = req.params;
+  const { email,id } = req.body; // Get email from request body
+  // User's email address
+
+  // Generate OTP
+  const otp = generateOTP();
+
+
+  // Save OTP temporarily (you can use a database or Redis in production)
+  otpStore[userId] = { otp, expiresAt: Date.now() + 300000 }; // OTP expires in 5 minutes
+
+  // Send OTP via email
+  sendOTPviaEmail2(email, otp)
+    .then(async() => {
+      await User.findByIdAndUpdate(id, { requestPending: true });
+     
+      res.status(200).json({ message: 'OTP sent successfully to email' });
+      
+      
+    })
+    .catch((error) => {
+      res.status(500).json({ error: 'Failed to send OTP via email' });
+    });
+});
+// 
 // API to verify OTP
 app.post('/user/verify-otp/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -266,7 +319,7 @@ app.post('/suggestions/send-email', async (req, res) => {
       to: process.env.EMAIL_USER,   // Your email address (recipient)
       replyTo: userEmail,           // Set the reply-to address to the user's email
       subject: `Contact Form Submission from ${userEmail} ${userName}`,
-      html: `<p>Hi, I am ${userName} with email ${userEmail} and my suggestion is: <strong>${suggestion}</strong></p>`,
+      html: `Hi, I am ${userName} with email ${userEmail} and my suggestion is: <strong>${suggestion}</strong>`,
     };
     
     

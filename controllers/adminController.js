@@ -111,6 +111,39 @@ export const addAdmin=async(req,res,next)=>{
     
     }
 
+  
+export const searchUsers = async (req, res) => {
+  const { searchBy, searchTerm } = req.query;
+
+  try {
+    let query = {};
+
+    // Determine the search field and build the query
+    switch (searchBy) {
+      case "name":
+        query = { name: { $regex: searchTerm, $options: "i" } }; // case insensitive search
+        break;
+      case "phoneNumber":
+        query = { phoneNumber: { $regex: searchTerm, $options: "i" } };
+        break;
+      case "email":
+        query = { email: { $regex: searchTerm, $options: "i" } };
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid search category" });
+    }
+
+    // Find users based on the query
+    const users = await User.find(query);
+
+    return res.json({ users });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Error searching users" });
+  }
+};
+
+
 
 
     

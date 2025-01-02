@@ -1,6 +1,7 @@
 import User from '../models/userModel.js'
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 
  // For verifying Google tokens
@@ -16,7 +17,10 @@ let newuser;
 try {
  newuser= await User.findById(userId).populate('orderRequest.requestedBy', 'name email status requestPending request phoneNumber') // Populate requestedBy with specific fields
  .populate('accessedBy.user', 'name email phoneNumber')
- .populate('requestedTo.userDetails','name email status count') // Populate the user field inside accessedBy
+ .populate('requestedTo.userDetails','name email status count')
+ .populate('OtherOrderRequest.requestedBy', 'name email status  phoneNumber')
+ .populate('OtherAccessedBy.user', 'name email phoneNumber')
+ .populate('OtherRequestedTo.userDetails','name email status ') // Populate the user field inside accessedBy
  .exec();
       
   
@@ -32,6 +36,86 @@ if(!newuser)
 
     res.status(200).json({newuser})
 }
+
+ //import mongoose from "mongoose";
+ // Update the path as necessary
+ export const checkRequest = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { currentUserId } = req.body;
+
+    // Validate input
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentUserId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID(s) provided.",
+      });
+    }
+
+    // Find the current user
+    const user = await User.findById(currentUserId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Current user not found.",
+      });
+    }
+
+    // Check if the current user has already requested the userId in the OtherRequestedTo array
+    const requestToUpdate = user.OtherRequestedTo.find((req) => req.userDetails.toString() === userId);
+
+    if (requestToUpdate) {
+      // If a request exists, return success with message
+      return res.status(200).json({
+        success: true,
+        alreadyRequested: true,
+        message: "Request already exists for this user.",
+      });
+    } else {
+      // If no request exists
+      return res.status(200).json({
+        success: true,
+        alreadyRequested: false,
+        message: "No existing request found for this user.",
+      });
+    }
+  } catch (error) {
+    console.error("Error checking request existence:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while checking the request existence.",
+    });
+  }
+};
+
+
+export const getOtherUser=async(req,res,next)=>{
+  const userId=req.params.currentUserId;
+
+   
+let newuser;
+
+
+try {
+newuser= await User.findById(userId).populate('OtherOrderRequest.requestedBy', 'name email status phoneNumber') // Populate requestedBy with specific fields
+.populate('OtherAccessedBy.user', 'name email phoneNumber')
+.populate('OtherRequestedTo.userDetails','name email status ') // Populate the user field inside accessedBy
+.exec();
+    
+
+} catch (error) {
+  return next(error)
+  
+}
+
+if(!newuser)
+  {
+      res.status(500).json({message:"something went wrong "})
+  }
+
+  res.status(200).json({newuser})
+}
+
 
 
 
@@ -202,6 +286,37 @@ export const login = async (req, res) => {
 };
 
 
+export const updateOtherStatus = async (req, res) => {
+  const { id, activeStatus } = req.body;
+
+  // Validate the input
+  if (typeof activeStatus !== 'boolean') {
+      return res.status(400).json({ message: 'Active status must be a boolean value' });
+  }
+
+  try {
+      // Find the user by id (or email, depending on your requirement)
+      const user = await User.findById(id);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Update the active status
+      user.otherServices = activeStatus;
+
+      // Save the updated user
+      await user.save();
+
+      return res.status(200).json({ message: 'User status updated successfully', user });
+  } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Error updating user status', error });
+  }
+};
+
+
+
+
 
 export const updateStatus = async (req, res) => {
     const { id, activeStatus } = req.body;
@@ -260,6 +375,57 @@ export const updateRequest = async (req, res) => {
     }
 };
 
+
+
+export const OtherUpdateRequest = async (req, res) => {
+  const { id, RequestStatus } = req.body;
+
+  // Validate the input
+  if (typeof RequestStatus !== 'boolean') {
+      return res.status(400).json({ message: 'Active status must be a boolean value' });
+  }
+
+  try {
+      // Find the user by id (or email, depending on your requirement)
+      const user = await User.findById(id);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Update the active status
+      user.OtherRequest = RequestStatus;
+
+      // Save the updated user
+      await user.save();
+
+      return res.status(200).json({ message: 'User status updated successfully', user });
+  } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Error updating user status', error });
+  }
+};
+
+
+export const getOtherServiceUsers = async (req, res) => {
+  try {
+      // Find all users with active status set to true
+      const activeUsers = await User.find({ otherServices: true });
+
+      // If no active users are found
+      if (activeUsers.length === 0) {
+          return res.status(404).json({ message: 'No active users found' ,users:{}});
+      }
+
+      // Return the active users
+      return res.status(200).json({ users: activeUsers });
+  } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Error retrieving active users', error });
+  }
+};
+
+
+
 export const getActiveUsers = async (req, res) => {
     try {
         // Find all users with active status set to true
@@ -316,6 +482,26 @@ export const getRequestUsers = async (req, res) => {
         console.error(error);
         return res.status(500).json({ message: 'Error retrieving active users', });
     }
+};
+
+
+
+export const getOtherRequestUsers = async (req, res) => {
+  try {
+      // Find all users with active status set to true
+      const requestUsers = await User.find({ OtherRequest: true });
+
+      // If no active users are found
+      if (requestUsers.length === 0) {
+          return res.status(404).json({ message: 'No active users found' });
+      }
+
+      // Return the active users
+      return res.status(200).json({ users: requestUsers });
+  } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Error retrieving active users', });
+  }
 };
 
 export const updateCount = async (req, res) => {
@@ -437,7 +623,7 @@ export const updateCount = async (req, res) => {
           from: process.env.EMAIL_USER,
           to: requestedByUser?.email,
           subject: "Order Request Approved",
-          text: `Hello ${requestedByUser?.name},\n\nYour order request has been approved. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Your Team`,
+          text: `Hello ${requestedByUser?.name},\n\nYour order request has been approved. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards,Campus Connect`,
         };
   
         transporter.sendMail(mailOptions, (error, info) => {
@@ -467,6 +653,237 @@ export const updateCount = async (req, res) => {
       res.status(500).json({ message: "Server error", error });
     }
   };
+
+  
+  export const OtherApproveRequest = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { requestId, requestedTo, identifier } = req.body;
+  
+      if (!requestId || !userId || !requestedTo || !identifier) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+  
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+  
+      const targetRequest = user.OtherOrderRequest.find(
+        (request) => request._id.toString() === requestId
+      );
+      if (!targetRequest) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+  
+      // Update the user service count
+      // user.serviceCount -= targetRequest.serviceCount || 1;
+      // if (user.serviceCount < 0) {
+      //   return res.status(400).json({ message: "Insufficient offers remaining" });
+      // }
+  
+      // if (user.serviceCount === 0) user.active = false;
+  
+      // Move to accessedBy
+      user.OtherAccessedBy.push({
+        user: targetRequest.requestedBy,
+      });
+  
+      // Remove from orderRequest
+      user.OtherOrderRequest = user.OtherOrderRequest.filter(
+        (request) => request._id.toString() !== requestId
+      );
+  
+      // Update the requested user's `requestedTo` array
+      const requestedByUser = await User.findById(requestedTo);
+
+      if (requestedByUser) {
+       const requestToUpdate = requestedByUser.OtherRequestedTo.find((req) => {
+  console.log("Checking request:", req);
+  console.log(
+    "Condition 1 (userDetails match):",
+    req.userDetails.toString() === userId
+  );
+  console.log(
+    "Condition 2 (createdAt match):",
+  req.identifier===identifier
+  );
+  return (
+    req.userDetails.toString() === userId &&
+    req.identifier===identifier
+  );
+});
+
+  
+        if (requestToUpdate) {
+          requestToUpdate.status = "approved";
+          await requestedByUser.save();
+        } else {
+          console.warn(
+            `No matching request found in requestedTo for userId: ${userId} and time: ${time}`
+          );
+        }
+      }
+  
+      // Send email notification
+      try {
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
+  
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: requestedByUser?.email,
+          subject: "Deliver Request Approved",
+          text: `Hello ${requestedByUser?.name},\n\nYour Delivery request has been approved. Please contact the user at their phone number: ${user.phoneNumber} for further details.\n\nBest regards, Campus Connect`,
+        };
+  
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.error("Error sending email: ", error);
+          } else {
+            console.log("Email sent: " + info.response);
+          }
+        });
+      } catch (emailError) {
+        console.error("Error during email sending:", emailError);
+      }
+  
+      // Save the updated user
+      await user.save();
+  
+      const updatedUser = await User.findById(userId)
+        .populate("OtherAccessedBy.user")
+        .populate("OtherOrderRequest.requestedBy");
+  
+      res.status(200).json({
+        message: "Request approved and moved to accessedBy",
+        newuser: updatedUser,
+      });
+    } catch (error) {
+      console.error("Error in approveRequest:", error);
+      res.status(500).json({ message: "Server error", error });
+    }
+  };
+    
+
+
+   // Assuming you are using nodemailer for email sending
+   export const OtherRejectRequest = async (req, res) => {
+    try {
+      console.log("entered in server")
+      const { userId } = req.params;
+      const { requestId, requestedTo, identifier } = req.body;
+
+      // console.log(requestId,requestedTo,identifier,userId)
+  
+      if (!requestId || !userId || !requestedTo || !identifier) {
+        
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      // console.log(1)
+  
+      // Find the user who received the request
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // console.log(2)
+  
+      // Find the target request by requestId in the orderRequest array
+      const targetRequest = user.OtherOrderRequest.find(
+        (request) => request._id.toString() === requestId
+      );
+
+      // console.log(3)
+      if (!targetRequest) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // console.log(4)
+  
+      // Remove the request from orderRequest
+      user.OtherOrderRequest = user.OtherOrderRequest.filter(
+        (request) => request._id.toString() !== requestId
+      );
+  
+      // console.log(5)
+      // Update the requested user's `requestedTo` array
+      const requestedByUser = await User.findById(requestedTo);
+      if (requestedByUser) {
+        // console.log('requesteduser')
+        const requestToUpdate = requestedByUser.OtherRequestedTo.find((req) => {
+          return (
+            req.userDetails.toString() === userId && req.identifier === identifier
+          );
+        });
+  
+        if (requestToUpdate) {
+          // console.log('requesstedUpdate')
+
+          requestToUpdate.status = "rejected"; // Update the status to rejected
+          await requestedByUser.save();
+        } else {
+          console.warn(
+            `No matching request found in requestedTo for userId: ${userId} and identifier: ${identifier}`
+          );
+        }
+
+        // console.log('done');
+  
+        // Send email notification to the requested user
+        try {
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASS,
+            },
+          });
+  
+          const mailOptions = { 
+            from: process.env.EMAIL_USER,
+            to: requestedByUser.email,
+            subject: "Delivery Service Request Rejected",
+            text: `Hello ${requestedByUser.name},\n\nWe regret to inform you that your Delivery Service request has been rejected.\n\nBest regards, Campus Connect`,
+          };
+  
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+              console.error("Error sending email: ", error);
+            } else {
+              console.log("Email sent: " + info.response);
+            }
+          });
+        } catch (emailError) {
+          console.error("Error during email sending:", emailError);
+        }
+      }
+  
+      // Save the updated user data
+      await user.save();
+
+      // console.log('done finally')
+  
+      // Retrieve the updated user details with populated fields
+      const updatedUser = await User.findById(userId)
+        .populate("OtherAccessedBy.user")
+        .populate("OtherOrderRequest.requestedBy");
+  
+      res.status(200).json({
+        message: "Request rejected and removed",
+        newuser: updatedUser,
+      });
+    } catch (error) {
+      console.error("Error in rejectRequest:", error);
+      res.status(500).json({ message: "Server error", error });
+    }
+  };  
   
   
   
@@ -544,11 +961,11 @@ export const updateCount = async (req, res) => {
             },
           });
   
-          const mailOptions = {
+          const mailOptions = { 
             from: process.env.EMAIL_USER,
             to: requestedByUser.email,
             subject: "Order Request Rejected",
-            text: `Hello ${requestedByUser.name},\n\nWe regret to inform you that your order request has been rejected.\n\nBest regards, Your Team`,
+            text: `Hello ${requestedByUser.name},\n\nWe regret to inform you that your order request has been rejected.\n\nBest regards, Campus Connect`,
           };
   
           transporter.sendMail(mailOptions, (error, info) => {
@@ -581,7 +998,10 @@ export const updateCount = async (req, res) => {
       console.error("Error in rejectRequest:", error);
       res.status(500).json({ message: "Server error", error });
     }
-  };
+  };  
+
+  
+   
   
   export const updateUserPassword = async (req, res) => {
     const { userId } = req.params; // Assuming the user ID is passed in the URL
@@ -638,6 +1058,37 @@ export const updateCount = async (req, res) => {
   
       // Retrieve the updated user details
       const updatedUser = await User.findById(userId).populate('accessedBy.user').populate('orderRequest.requestedBy');
+  
+      res.status(200).json({ message: 'AccessedBy entry removed', newuser: updatedUser });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  };
+
+
+
+  
+  export const OtherRemoveAccessedBy = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { index} = req.body;
+  
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      if (index < 0 || index >= user.OtherAccessedBy.length) {
+        return res.status(400).json({ message: 'Invalid index' });
+      }
+  
+      user.OtherAccessedBy.splice(index, 1);
+    
+      await user.save();
+  
+      // Retrieve the updated user details
+      const updatedUser = await User.findById(userId).populate('OtherAccessedBy.user').populate('OtherOrderRequest.requestedBy');
   
       res.status(200).json({ message: 'AccessedBy entry removed', newuser: updatedUser });
     } catch (error) {
@@ -739,6 +1190,35 @@ export const deleteRequestFromRequestedTo = async (req, res) => {
       await user.save();
 
       res.status(200).json({ message: 'Request deleted successfully',cart:user.requestedTo.length });
+  } catch (error) {
+      console.error('Error deleting request:', error);
+      res.status(500).json({ message: 'Server error' });
+  }
+};
+  
+
+
+export const deleteOtherRequestFromRequestedTo = async (req, res) => {
+  try {
+      const { userId, index } = req.params;
+
+      if (!userId || index === undefined) {
+          return res.status(400).json({ message: 'Invalid parameters' });
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      if (index < 0 || index >= user.OtherRequestedTo.length) {
+          return res.status(400).json({ message: 'Invalid index' });
+      }
+
+      user.OtherRequestedTo.splice(index, 1);
+      await user.save();
+
+      res.status(200).json({ message: 'Request deleted successfully',cart:user.OtherRequestedTo.length });
   } catch (error) {
       console.error('Error deleting request:', error);
       res.status(500).json({ message: 'Server error' });

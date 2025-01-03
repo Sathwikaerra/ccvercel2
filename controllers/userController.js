@@ -489,7 +489,7 @@ export const getRequestUsers = async (req, res) => {
 export const getOtherRequestUsers = async (req, res) => {
   try {
       // Find all users with active status set to true
-      const requestUsers = await User.find({ OtherRequest: true });
+      const requestUsers = await User.find({ otherServices: true });
 
       // If no active users are found
       if (requestUsers.length === 0) {

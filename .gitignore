@@ -37,3 +37,4 @@ yarn.lock
 
 # TypeScript build output
 *.tsbuildinfo
+.vercel

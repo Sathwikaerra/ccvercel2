@@ -223,7 +223,7 @@ export const verifySignup = async (req, res) => {
     }
 
     // Check if the user ID already exists
-    const existingId = await User.findOne({ id });
+    const existingId = await User.findOne({ id }); 
     if (existingId) {
       // console.log("ID already exists");
       return res.status(401).json({ message: 'ID already exists' });
@@ -566,11 +566,14 @@ export const updateCount = async (req, res) => {
       }
   
       if (user.serviceCount === 0) user.active = false;
+
+      // console.log(targetRequest.phoneNumber)
   
       // Move to accessedBy
       user.accessedBy.push({
         user: targetRequest.requestedBy,
         count: targetRequest.serviceCount || 1,
+        phoneNumber:targetRequest.phoneNumber
       });
   
       // Remove from orderRequest
@@ -687,6 +690,7 @@ export const updateCount = async (req, res) => {
       // Move to accessedBy
       user.OtherAccessedBy.push({
         user: targetRequest.requestedBy,
+        phoneNumber:targetRequest.phoneNumber
       });
   
       // Remove from orderRequest

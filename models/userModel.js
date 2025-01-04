@@ -72,6 +72,11 @@ const UserSchema = new Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: 'User', // Reference the User model
         },
+        phoneNumber:{
+          type:Number,
+          default:0
+        }
+        ,
         count: {
           type: Number,
           default: 0, // Default count is 0
@@ -84,6 +89,10 @@ const UserSchema = new Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: 'User', // Reference the User model
         },
+        phoneNumber:{
+          type:Number,
+          default:0
+        }
       },
     ],
     // Tracks incoming requests
@@ -101,6 +110,10 @@ const UserSchema = new Schema(
         serviceCount: {
           type: Number,
           required: true,
+        },
+        phoneNumber:{
+          type:Number,
+          default:0
         },
        
         status: {
@@ -128,6 +141,10 @@ const UserSchema = new Schema(
           type:String,
           default:0
           
+        },
+        phoneNumber:{
+          type:Number,
+          default:0
         },
       
        
@@ -158,6 +175,10 @@ const UserSchema = new Schema(
           default:0
           
         },
+        phoneNumber:{
+          type:Number,
+          default:0
+        },
         createdAt: {
           type: Date,
           default: Date.now,
@@ -177,6 +198,10 @@ const UserSchema = new Schema(
           type:String,
           default:0
           
+        },
+        phoneNumber:{
+          type:Number,
+          default:0
         },
         createdAt: {
           type: Date,

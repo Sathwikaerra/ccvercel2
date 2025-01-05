@@ -114,6 +114,11 @@ const UserSchema = new Schema(
           type:String,
           default:0
           
+
+        },
+        location:{
+          type:String,
+
         },
         serviceCount: {
           type: Number,
@@ -150,6 +155,10 @@ const UserSchema = new Schema(
           default:0
           
         },
+        otherLocation:{
+          type:String
+
+        },
         phoneNumber:{
           type:Number,
           default:0
@@ -176,6 +185,7 @@ const UserSchema = new Schema(
       {
         userDetails: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
         serviceCount:{type:Number,default:0},
+        location:{type:String},
         _id: { type: mongoose.Schema.Types.ObjectId, index: true },
         status: { type: String, default: "pending" },
         identifier:{
@@ -201,6 +211,7 @@ const UserSchema = new Schema(
       {
         userDetails: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
         _id: { type: mongoose.Schema.Types.ObjectId, index: true },
+        otherLocation:{type:String},
         status: { type: String, default: "pending" },
         identifier:{
           type:String,

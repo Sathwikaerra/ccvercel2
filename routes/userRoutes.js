@@ -169,7 +169,9 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
     UserRouter.put('/other/set-order-request/:userId', async (req, res) => {
       try {
         const { userId } = req.params;
-        const { requestedBy, status,identifier,phoneNumber} = req.body;
+        const { requestedBy, status,identifier,phoneNumber,otherLocation} = req.body;
+
+        // console.log(location)
 
         // console.log(requestedBy,serviceCount,status)
     
@@ -202,6 +204,7 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
           requestedBy, // The user who is requestin // Number of services requested
           status,
           identifier,
+          otherLocation,
           phoneNumber, // Status of the order (pending, approved, rejected)
           createdAt: new Date(),
         };
@@ -213,6 +216,7 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
           userDetails: userId, // The user being requested // Number of services requested
           status,
           identifier,
+          otherLocation,
           phoneNumber, // Status of the request (pending, approved, rejected)
           createdAt: new Date(),
         };
@@ -239,8 +243,8 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
     UserRouter.put('/set-order-request/:userId', async (req, res) => {
       try {
         const { userId } = req.params;
-        const { requestedBy, serviceCount, status,identifier,phoneNumber } = req.body;
-        // console.log(phoneNumber)
+        const { requestedBy, serviceCount, status,identifier,phoneNumber,location } = req.body;
+        // console.log(location)
 
         // console.log(requestedBy,serviceCount,status)
     
@@ -274,6 +278,7 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
           serviceCount, // Number of services requested
           status,
           identifier,
+          location,
           phoneNumber, // Status of the order (pending, approved, rejected)
           createdAt: new Date(),
         };
@@ -286,6 +291,7 @@ UserRouter.delete('/remove-accessed-by/:userId', async (req, res) => {
           serviceCount, // Number of services requested
           status,
           identifier,
+          location,
           phoneNumber, // Status of the request (pending, approved, rejected)
           createdAt: new Date(),
         };

@@ -287,7 +287,7 @@ export const login = async (req, res) => {
 
 
 export const updateOtherStatus = async (req, res) => {
-  const { id, activeStatus } = req.body;
+  const { id, activeStatus,location } = req.body;
 
   // Validate the input
   if (typeof activeStatus !== 'boolean') {
@@ -303,6 +303,7 @@ export const updateOtherStatus = async (req, res) => {
 
       // Update the active status
       user.otherServices = activeStatus;
+      user.otherLocation=location;
 
       // Save the updated user
       await user.save();
@@ -319,7 +320,8 @@ export const updateOtherStatus = async (req, res) => {
 
 
 export const updateStatus = async (req, res) => {
-    const { id, activeStatus } = req.body;
+    const { id, activeStatus,location } = req.body;
+    // console.log(activeStatus,location)
 
     // Validate the input
     if (typeof activeStatus !== 'boolean') {
@@ -335,6 +337,11 @@ export const updateStatus = async (req, res) => {
 
         // Update the active status
         user.active = activeStatus;
+       
+          user.location=location;
+
+        
+      
 
         // Save the updated user
         await user.save();

@@ -21,6 +21,14 @@ const UserSchema = new Schema(
     resetPasswordExpires: {
       type: Date,
     },
+    location:{
+      type:String,
+      default:"Basar",
+    },
+    otherLocation:{
+      type:String,
+      default:"Basar",
+    },
     email: {
       type: String,
       required: true,
